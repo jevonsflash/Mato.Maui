@@ -15,6 +15,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Maui.Graphics.Text;
+using Microsoft.Maui.Controls.Compatibility.Platform.iOS;
 
 namespace Mato.Controls
 {
@@ -293,13 +294,14 @@ namespace Mato.Controls
 #if IOS
                 var platformView = handler.PlatformView as UITextView;
                 NSMutableAttributedString AttributedText;
-                UIFont CurrentFont;
-                bool CurrentUnderline;
-                bool ChangeUnderline;
+                UIFont CurrentFont = null;
+                bool CurrentUnderline = default;
+                bool ChangeUnderline = default;
                 NSMutableDictionary CurrentTypingAttributes = new NSMutableDictionary();
 
                 HtmlRequested = new EventHandler(
-                                      (object sender, EventArgs e) => {
+                                      (object sender, EventArgs e) =>
+                                      {
                                           var editor = (HtmlEditor)sender;
                                           editor.SetHtmlText(HtmlParser_iOS.AttributedStringToHtml(platformView.AttributedText));
 
@@ -391,6 +393,29 @@ namespace Mato.Controls
                     ChangeUnderline = true;
                 }
 
+                void UpdateForegroundColorAttributes(Microsoft.Maui.Graphics.Color color)
+                {
+                    var selectionRange = platformView.SelectedRange;
+                    AttributedText.AddAttribute(UIStringAttributeKey.ForegroundColor, color.ToUIColor(), selectionRange);
+                }
+
+                void UpdateFontSizeSpanAttributes(int size)
+                {
+                    UIFont newFont;
+                    if (CurrentFont!=null)
+                    {
+                        newFont =  CurrentFont.WithSize((float)size);
+                    }
+                    else
+                    {
+                        newFont = UIFont.SystemFontOfSize((float)size);
+
+                    }
+                    var selectionRange = platformView.SelectedRange;
+                    AttributedText.AddAttribute(UIStringAttributeKey.Font, newFont, selectionRange);
+                    CurrentFont=newFont;
+                }
+
 
 
                 StyleChangeRequested =new EventHandler<StyleArgs>(
@@ -418,15 +443,40 @@ namespace Mato.Controls
                                   UpdateStyleAttributes(UIFontDescriptorSymbolicTraits.Bold);
                                   break;
                               case StyleType.backgoundColor:
+                                  UpdateForegroundColorAttributes(Microsoft.Maui.Graphics.Color.FromArgb(e.Params));
+
                                   break;
                               case StyleType.foregroundColor:
                                   break;
                               case StyleType.size:
+                                  UpdateFontSizeSpanAttributes(int.Parse(e.Params));
+
                                   break;
                               default:
                                   break;
                           }
-                     
+
+                          platformView.AttributedText = AttributedText;
+                          this.Focus();
+
+                          if (CurrentFont != null)
+                          {
+                              var name = CurrentFont.Name;
+                              CurrentTypingAttributes[UIStringAttributeKey.Font] = CurrentFont;
+                              if (ChangeUnderline)
+                              {
+                                  if (CurrentUnderline)
+                                  {
+                                      CurrentTypingAttributes[UIStringAttributeKey.UnderlineStyle] = (NSNumber)1;
+                                  }
+                                  else
+                                  {
+                                      CurrentTypingAttributes[UIStringAttributeKey.UnderlineStyle] = (NSNumber)0;
+                                  }
+                                  ChangeUnderline = false;
+                              }
+                              platformView.TypingAttributes = CurrentTypingAttributes;
+                          }
 
 
 
